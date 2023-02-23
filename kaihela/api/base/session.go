@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"fmt"
 	"github.com/bytedance/sonic"
+	"github.com/bytedance/sonic/ast"
 	"github.com/gookit/event"
 	log "github.com/sirupsen/logrus"
 	event2 "golang-bot/kaihela/api/base/event"
@@ -12,10 +13,13 @@ import (
 )
 
 const EVENT_RECEIVE_FRAME = "EVENT-GLOBAL-RECEIVE_FRAME"
+const EventDataFrameKey = "frame"
+const EventDataSessionKey = "session"
 
 type Session struct {
 	Compressed          int
 	ReceiveFrameHandler func(frame *event2.FrameMap) error
+	ProcessDataHandler  func(data ast.Node) []byte
 }
 
 func (s *Session) On(message string, handler event.Listener) {
@@ -39,13 +43,16 @@ func (s *Session) ReceiveData(data []byte) error {
 		}
 
 	}
-	_, err := sonic.Get(data)
+	dataNode, err := sonic.Get(data)
 	if err != nil {
 		log.Error("Json Unmarshal err.", err)
 		return err
 	}
-	data2 := s.ProcessData(data)
-	frame := event2.ParseFrameMapByData(data2)
+	if s.ProcessDataHandler != nil {
+		data = s.ProcessDataHandler(dataNode)
+	}
+	frame := event2.ParseFrameMapByData(data)
+	log.WithField("frame", frame).Info("Receive frame from server")
 	if frame != nil {
 		if s.ReceiveFrameHandler != nil {
 			return s.ReceiveFrameHandler(frame)
@@ -59,17 +66,14 @@ func (s *Session) ReceiveData(data []byte) error {
 
 }
 
-func (s *Session) ProcessData(data []byte) []byte {
-	return data
-}
-
 func (s *Session) ReceiveFrame(frame *event2.FrameMap) error {
 	event.Trigger(EVENT_RECEIVE_FRAME, map[string]interface{}{"frame": frame})
 	if frame.SignalType == event2.SIG_EVENT {
 		eventType := frame.Data["type"]
-		channelType := frame.Data["channel_type"]
+		channelType := frame.Data["channel_type"].(string)
 		if eventType != "" {
-			event.Trigger(fmt.Sprint("%s_%s", eventType, channelType), map[string]interface{}{"frame": frame})
+			name := fmt.Sprintf("%s_%d", channelType, int64(eventType.(float64)))
+			event.Trigger(name, map[string]interface{}{EventDataFrameKey: frame, EventDataSessionKey: s})
 		}
 	}
 	return nil

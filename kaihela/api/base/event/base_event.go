@@ -12,7 +12,7 @@ const (
 
 type BaseEvent struct {
 	ChannelType  string `json:"channel_type"`
-	Type         string `json:"type"`
+	Type         int    `json:"type"`
 	TargetId     string `json:"target_id"`
 	AuthorId     string `json:"author_id"`
 	Content      string `json:"content"`

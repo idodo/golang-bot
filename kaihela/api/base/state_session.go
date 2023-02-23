@@ -49,15 +49,17 @@ const (
 	EventResumeReceivedOk      = "ResumeReceived"
 )
 
-type StatusParam struct {
-	StartTime int
-	MaxTime   int
-	Retry     int
-	MaxRetry  int
-}
+const (
+	NO_RETRY      = -1
+	RETRY_INFINIT = 0
+)
 
-func NewStatusParam() *StatusParam {
-	return &StatusParam{-1, -1, -1, -1}
+type StatusParam struct {
+	StartTime  int
+	MaxTime    int
+	FirstDelay int
+	Retry      int
+	MaxRetry   int
 }
 
 /**                                                _________________
@@ -82,21 +84,21 @@ type StateSession struct {
 	FSM          *fsm.FSM
 	NetworkProxy SystemInterface
 
-	StatusParams       map[string]*StatusParam
-	HeartBeatCron      *cron.Cron
-	HeartBeatCheckCron *cron.Cron
-	LastPongAt         time.Time
-	LastPingAt         time.Time
+	StatusParams    map[string]*StatusParam
+	HeartBeatCron   *cron.Cron
+	LastPongAt      time.Time
+	LastPingAt      time.Time
+	PongTimeoutChan chan time.Time
 }
 
 func NewStateSession(gateway string, compressed int) *StateSession {
 	s := &StateSession{}
 	s.StatusParams = map[string]*StatusParam{
-		StatusInit:        &StatusParam{StartTime: 0, MaxTime: 60, Retry: 0},
-		StatusGateway:     &StatusParam{StartTime: 1, MaxTime: 32, Retry: 0, MaxRetry: 2},
-		StatusWSConnected: &StatusParam{StartTime: 6, MaxTime: 6, Retry: 0},
-		StatusConnected:   &StatusParam{StartTime: 30, MaxTime: 30, Retry: 0},
-		StatusRetry:       &StatusParam{StartTime: 4, MaxTime: 8, Retry: 0, MaxRetry: 2},
+		StatusInit:        &StatusParam{StartTime: 0, MaxTime: 60, FirstDelay: 1, MaxRetry: RETRY_INFINIT},
+		StatusGateway:     &StatusParam{StartTime: 1, MaxTime: 32, FirstDelay: 2, MaxRetry: 2},
+		StatusWSConnected: &StatusParam{StartTime: 6, MaxTime: 0, FirstDelay: 0, MaxRetry: NO_RETRY},
+		StatusConnected:   &StatusParam{StartTime: 30, MaxTime: 30, FirstDelay: 30, MaxRetry: NO_RETRY},
+		StatusRetry:       &StatusParam{StartTime: 4, MaxTime: 8, FirstDelay: 4, MaxRetry: 2},
 	}
 	s.Session.ReceiveFrameHandler = s.ReceiveFrameHandler
 	s.Compressed = compressed
@@ -119,6 +121,9 @@ func NewStateSession(gateway string, compressed int) *StateSession {
 			{Name: EventResumeReceivedOk, Src: []string{StatusWSConnected, StatusConnected}, Dst: StatusConnected},
 		},
 		fsm.Callbacks{
+			"enter_state": func(_ context.Context, e *fsm.Event) {
+				log.WithField("from", e.Src).WithField("to", e.Dst).Info("state change")
+			},
 			EventEnterPrefix + StatusInit: func(_ context.Context, e *fsm.Event) {
 				s.Retry(e, func() error { return s.GetGateway() }, nil)
 			},
@@ -130,7 +135,7 @@ func NewStateSession(gateway string, compressed int) *StateSession {
 			},
 			EventEnterPrefix + StatusConnected: func(_ context.Context, e *fsm.Event) {
 				s.HeartBeatCron.Start()
-				s.HeartBeatCheckCron.Start()
+				s.StartCheckHeartbeat()
 			},
 			EventEnterPrefix + StatusRetry: func(_ context.Context, e *fsm.Event) {
 				s.Retry(e, func() error { s.SendHeartBeat(); return errors.New("just for continue to send heartbeat") }, nil)
@@ -139,14 +144,14 @@ func NewStateSession(gateway string, compressed int) *StateSession {
 	)
 
 	s.HeartBeatCron = cron.New()
-	s.HeartBeatCheckCron = cron.New()
 	interval := s.StatusParams[StatusConnected].MaxTime
 	s.HeartBeatCron.AddFunc(fmt.Sprintf("@every %ds", interval), func() {
 		s.SendHeartBeat()
 	})
-	s.HeartBeatCheckCron.AddFunc(fmt.Sprintf("@every %ds", 1), func() {
-		s.CheckHeartbeat()
-	})
+	s.PongTimeoutChan = make(chan time.Time)
+	//s.HeartBeatCheckCron.AddFunc(fmt.Sprintf("@every %ds", 1), func() {
+	//	s.CheckHeartbeat()
+	//})
 	return s
 }
 func (s *StateSession) Start() {
@@ -175,9 +180,11 @@ func (s *StateSession) GetGateway() error {
 	return nil
 }
 func (s *StateSession) Retry(e *fsm.Event, handler func() error, errHandler func() error) {
+	log.Infof("Retry handler:%s", helper.GetFunctionName(handler))
 	startTime := s.StatusParams[s.FSM.Current()].StartTime
 	maxTime := s.StatusParams[s.FSM.Current()].MaxTime
 	maxRetry := s.StatusParams[s.FSM.Current()].MaxRetry
+	firstDelay := s.StatusParams[s.FSM.Current()].FirstDelay
 	if e != nil {
 		if len(e.Args) > 0 {
 			if param, ok := e.Args[0].(*StatusParam); ok {
@@ -187,17 +194,36 @@ func (s *StateSession) Retry(e *fsm.Event, handler func() error, errHandler func
 				if param.MaxTime > 0 {
 					maxTime = param.MaxTime
 				}
-				if param.MaxRetry > 0 {
+				if param.FirstDelay > 0 {
+					firstDelay = param.FirstDelay
+				}
+				if param.MaxRetry != 0 {
 					maxRetry = param.MaxRetry
 				}
+
 			}
 		}
 	}
+	//等待start时间开始
 	time.Sleep(time.Second * time.Duration(startTime))
+
+	//不用指数重试
+	if maxRetry == NO_RETRY {
+		err := handler()
+		if err != nil {
+			log.WithError(err).Infof("Retry function error: %s", helper.GetFunctionName(handler))
+			if errHandler != nil {
+				errHandler()
+			}
+		}
+		return
+	}
+
+	//指数重试
 	err := retry.Do(
 		handler,
 		retry.DelayType(retry.BackOffDelay),
-		retry.Delay(time.Second*time.Duration(startTime)),
+		retry.Delay(time.Second*time.Duration(firstDelay)),
 		retry.MaxDelay(time.Second*time.Duration(maxTime)),
 		retry.Attempts(uint(maxRetry)),
 		retry.OnRetry(func(n uint, err error) { log.WithError(err).Info("try %d times call function %s", n, handler) }),
@@ -240,6 +266,7 @@ func (s *StateSession) receiveHello(frameMap *event2.FrameMap) {
 		code = int(_code.(float64))
 	}
 	if code == 0 {
+		s.LastPongAt = time.Now()
 		log.Info("receiveHello")
 		s.SaveSessionId(frameMap.Data["sessionId"].(string))
 		s.FSM.Event(context.Background(), EventHelloReceived)
@@ -263,7 +290,6 @@ func (s *StateSession) StartProcessEvent() {
 			case frame := <-s.RecvQueue:
 				s.ReceiveFrame(frame)
 			}
-
 		}
 	}()
 
@@ -303,7 +329,6 @@ func (s *StateSession) ReceiveFrameHandler(frame *event2.FrameMap) error {
 }
 
 func (s *StateSession) SendHeartBeat() error {
-	s.MaxSn += 1
 	pingFrame := event2.NewPingFrame(s.MaxSn)
 	if s.NetworkProxy != nil {
 		data, err := sonic.Marshal(pingFrame)
@@ -312,7 +337,13 @@ func (s *StateSession) SendHeartBeat() error {
 			return err
 		}
 		s.LastPingAt = time.Now()
-		return s.NetworkProxy.SendData(data)
+		log.WithField("ping", string(data)).Info("Send Ping")
+		err = s.NetworkProxy.SendData(data)
+		if err != nil {
+			return err
+		} else {
+			s.PongTimeoutChan <- s.LastPingAt.Add(time.Duration(s.Timeout) * time.Second)
+		}
 	}
 	return nil
 }
@@ -333,23 +364,41 @@ func (s *StateSession) receivePong(frame *event2.FrameMap) {
 	s.LastPongAt = time.Now()
 }
 
-func (s *StateSession) CheckHeartbeat() {
-	log.Info("heartBeatTimeout")
-	if s.LastPongAt.Before(s.LastPingAt.Add(-time.Duration(s.Timeout) * time.Second)) { //发送Ping后6s内没有收到Pong, 做timeout事件, 停止心跳发送和检测
-		if s.FSM.Current() == StatusConnected {
-			err := s.FSM.Event(context.Background(), EventHeartbeatTimeout)
-			if err == nil {
-				s.HeartBeatCron.Stop()
-			}
-		}
+func (s *StateSession) StartCheckHeartbeat() {
+	log.Info("Start heartBeatTimeout check")
+	go func() {
+		for {
+			select {
+			case pongTimeoutAt := <-s.PongTimeoutChan:
+				{
+					log.WithField("pongTimeoutAt", pongTimeoutAt).Info("check pong receive timeout")
+					if s.FSM.Current() != StatusConnected && s.FSM.Current() != StatusRetry {
+						continue
+					}
+					if time.Now().Before(pongTimeoutAt) { //还没有到的timeout检查时间点
+						time.Sleep(pongTimeoutAt.Sub(time.Now()))
+						//最后收到Pong时间比（约定检查时间-最大过期时间）早，表示在过去的约定的过期时间内及之后没有收到Pong
+						if s.LastPongAt.Before(pongTimeoutAt.Add(-time.Duration(s.Timeout) * time.Second)) {
+							log.Info("Pong not received before:%s", pongTimeoutAt)
+							if s.FSM.Current() == StatusConnected {
+								err := s.FSM.Event(context.Background(), EventHeartbeatTimeout)
+								if err == nil {
+									s.HeartBeatCron.Stop()
+								}
+							}
 
-		if s.FSM.Current() == StatusRetry {
-			err := s.FSM.Event(context.Background(), EventRetryHeartbeatTimeout)
-			if err == nil {
-				s.HeartBeatCheckCron.Stop()
+							if s.FSM.Current() == StatusRetry {
+
+								err := s.FSM.Event(context.Background(), EventRetryHeartbeatTimeout)
+								if err == nil {
+								}
+							}
+						}
+					}
+				}
 			}
 		}
-	}
+	}()
 }
 
 func (s *StateSession) ResumeOk() {
@@ -363,7 +412,6 @@ func (s *StateSession) ResumeOk() {
 func (s *StateSession) Reconnect() {
 	s.Trigger("status_reconnect", nil)
 	log.Info("reconnect")
-	s.HeartBeatCheckCron.Stop()
 	s.HeartBeatCron.Stop()
 	s.GateWay = ""
 	s.RecvQueue = make(chan *event2.FrameMap)

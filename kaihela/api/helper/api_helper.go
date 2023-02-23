@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -9,19 +10,29 @@ import (
 	"strings"
 )
 
+type HttpMethod string
+type ContentType string
+
 const (
-	APIMethodGet = "GET"
+	MethodGet            HttpMethod  = "GET"
+	MethodPost           HttpMethod  = "POST"
+	ContentJSON          ContentType = "application/json"
+	ContentFormUrlEncode ContentType = "application/x-www-form-urlencoded"
 )
 
 type ApiHelper struct {
-	Token      string
-	Type       string
-	Language   string
-	BaseUrl    string
-	QueryParam string
+	Token       string
+	Type        string
+	Language    string
+	BaseUrl     string
+	QueryParam  string
+	Path        string
+	Body        []byte
+	ContentType ContentType
+	Method      HttpMethod
 }
 
-func NewApiHelper(token, baseUrl, apiType, language string) *ApiHelper {
+func NewApiHelper(path, token, baseUrl, apiType, language string) *ApiHelper {
 	apiHelper := &ApiHelper{Token: token, Type: "Bot", BaseUrl: "https://www.kaiheila.cn", Language: "zh-CN"}
 
 	if baseUrl != "" {
@@ -33,6 +44,10 @@ func NewApiHelper(token, baseUrl, apiType, language string) *ApiHelper {
 	if language != "" {
 		apiHelper.Language = language
 	}
+	apiHelper.Path = path
+	apiHelper.ContentType = ContentJSON
+	apiHelper.Method = MethodGet
+
 	return apiHelper
 }
 func (h *ApiHelper) SetQuery(values map[string]string) {
@@ -45,18 +60,45 @@ func (h *ApiHelper) SetQuery(values map[string]string) {
 	}
 
 }
-func (h *ApiHelper) Get(path string) ([]byte, error) {
+
+func (h *ApiHelper) SetBody(body []byte) *ApiHelper {
+	h.Body = body
+	return h
+}
+
+func (h *ApiHelper) SetContentType(contentType ContentType) {
+	h.ContentType = contentType
+}
+func (h *ApiHelper) Get() ([]byte, error) {
+	h.Method = MethodGet
+	return h.Send()
+}
+func (h *ApiHelper) Post() ([]byte, error) {
+	h.Method = MethodPost
+	return h.Send()
+}
+func (h *ApiHelper) Send() ([]byte, error) {
 	client := &http.Client{}
 	reqPath := ""
-	if strings.HasPrefix(path, "/") || strings.HasSuffix(h.BaseUrl, "/") {
-		reqPath = h.BaseUrl + path
+	if strings.HasPrefix(h.Path, "/") || strings.HasSuffix(h.BaseUrl, "/") {
+		reqPath = h.BaseUrl + h.Path
 	} else {
-		reqPath = h.BaseUrl + "/" + path
+		reqPath = h.BaseUrl + "/" + h.Path
 	}
 	if h.QueryParam != "" {
 		reqPath += "?" + h.QueryParam
 	}
-	req, _ := http.NewRequest("GET", reqPath, nil)
+	var req *http.Request
+	var err error
+	if h.Body != nil {
+		req, err = http.NewRequest(string(h.Method), reqPath, bytes.NewBuffer(h.Body))
+	} else {
+		req, err = http.NewRequest(string(h.Method), reqPath, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", string(h.ContentType))
 	req.Header.Set("Authorization", fmt.Sprintf("%s %s", h.Type, h.Token))
 	req.Header.Set("Accept-Language", h.Language)
 	resp, err := client.Do(req)

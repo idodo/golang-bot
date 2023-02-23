@@ -29,6 +29,6 @@ func NewPingFrame(sn int64) *FrameMap {
 	frame := &FrameMap{}
 	frame.SerialNumber = sn
 	frame.SignalType = SIG_PING
-	frame.Data = make(map[string]interface{})
+	//frame.Data = make(map[string]interface{})
 	return frame
 }

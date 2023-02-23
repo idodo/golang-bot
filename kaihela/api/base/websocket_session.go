@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 )
 
 type WebSocketSession struct {
@@ -18,6 +19,7 @@ type WebSocketSession struct {
 	BaseUrl     string
 	SessionFile string
 	WsConn      *websocket.Conn
+	WsWriteLock *sync.Mutex
 	//sWSClient
 }
 
@@ -47,14 +49,14 @@ func NewWebSocketSession(token, baseUrl, sessionFile, gateWay string, compressed
 	}
 	s.StateSession = NewStateSession(gateWay, compressed)
 	s.NetworkProxy = s
-
+	s.WsWriteLock = new(sync.Mutex)
 	return s
 }
 
 func (ws *WebSocketSession) ReqGateWay() (error, string) {
-	client := helper.NewApiHelper(ws.Token, ws.BaseUrl, "", "")
+	client := helper.NewApiHelper("/v3/gateway/index", ws.Token, ws.BaseUrl, "", "")
 	client.SetQuery(map[string]string{"compress": strconv.Itoa(ws.Compressed)})
-	data, err := client.Get("/v3/gateway/index")
+	data, err := client.Get()
 	if err != nil {
 		log.WithError(err).Error("ReqGateWay")
 		return err, ""
@@ -75,7 +77,6 @@ func (ws *WebSocketSession) ReqGateWay() (error, string) {
 func (ws *WebSocketSession) ConnectWebsocket(gateway string) error {
 	if ws.SessionId != "" {
 		gateway += "&" + fmt.Sprintf("sn=%d&sessionId=%s&resume=1", ws.MaxSn, ws.SessionId)
-
 	}
 	log.WithField("gateway", gateway).Info("ConnectWebsocket")
 
@@ -96,7 +97,7 @@ func (ws *WebSocketSession) ConnectWebsocket(gateway string) error {
 				log.Println("read:", err)
 				return
 			}
-			log.WithField("message", message).Info("websocket recv")
+			log.WithField("message", message).Trace("websocket recv")
 			err = ws.ReceiveData(message)
 			if err != nil {
 				log.WithError(err).Error("ReceiveData error")
@@ -106,6 +107,8 @@ func (ws *WebSocketSession) ConnectWebsocket(gateway string) error {
 	return nil
 }
 func (ws *WebSocketSession) SendData(data []byte) error {
+	ws.WsWriteLock.Lock()
+	defer ws.WsWriteLock.Unlock()
 	return ws.WsConn.WriteMessage(websocket.TextMessage, data)
 }
 
