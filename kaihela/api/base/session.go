@@ -68,7 +68,7 @@ func (s *Session) ReceiveData(data []byte) (error, []byte) {
 			return s.ReceiveFrame(frame)
 		}
 	} else {
-		log.Warnf("数据不是合法的frame", string(data))
+		log.Warnf("数据不是合法的frame:%s", string(data))
 	}
 	return nil, nil
 
