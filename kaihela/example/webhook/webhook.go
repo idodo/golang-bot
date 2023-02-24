@@ -18,7 +18,7 @@ func main() {
 	session := base.NewWebhookSession(conf.EncryptKey, conf.VerifyToken, 1)
 	session.On(base.EventReceiveFrame, &handler.ReceiveFrameHandler{})
 	session.On("GROUP*", &handler.GroupEventHandler{})
-	session.On("GROUP_9", &handler.GroupTextEventHandler{})
+	session.On("GROUP_9", &handler.GroupTextEventHandler{Token: conf.Token, BaseUrl: conf.BaseUrl})
 	http.HandleFunc("/", func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Set("Content-Type", "application/json")
 		defer req.Body.Close()
