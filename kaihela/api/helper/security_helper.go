@@ -7,17 +7,28 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 func DecryptData(data string, encryptKey string) (error, string) {
-	rawDecodedText, err := base64.StdEncoding.DecodeString(data)
+	encryptKeyUsed := strings.Builder{}
+	encryptKeyUsed.WriteString(encryptKey)
+	if len(encryptKey) < 32 {
+		encryptKeyUsed.Write(bytes.Repeat([]byte{byte(0)}, 32-len(encryptKey)))
+	}
+	rawBase64Decoded, err := base64.StdEncoding.DecodeString(data)
+
 	if err != nil {
 		log.Error(err)
 		return err, ""
 	}
-	sRawText := string(rawDecodedText)
-	iv := sRawText[:16]
-	return Ase256Decode(sRawText[16:], encryptKey, iv)
+	iv := rawBase64Decoded[:16]
+	rawContent, err := base64.StdEncoding.DecodeString(string(rawBase64Decoded[16:]))
+	if err != nil {
+		log.Error(err)
+		return err, ""
+	}
+	return Ase256Decode(rawContent, encryptKeyUsed.String(), iv)
 }
 
 func Ase256Encode(plaintext string, key string, iv string, blockSize int) (error, string) {
@@ -34,14 +45,10 @@ func Ase256Encode(plaintext string, key string, iv string, blockSize int) (error
 	return nil, hex.EncodeToString(ciphertext)
 }
 
-func Ase256Decode(cipherText string, encKey string, iv string) (err error, decryptedString string) {
+func Ase256Decode(cipherText []byte, encKey string, iv []byte) (error, string) {
 	bKey := []byte(encKey)
-	bIV := []byte(iv)
-	cipherTextDecoded, err := hex.DecodeString(cipherText)
-	if err != nil {
-		log.Error(err)
-		return err, ""
-	}
+	bIV := iv
+	var cipherTextDecoded = cipherText
 
 	block, err := aes.NewCipher(bKey)
 	if err != nil {
