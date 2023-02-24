@@ -59,7 +59,7 @@ func (s *WebhookSession) ProcessData(data []byte) (err error, data2 []byte) {
 func (s *WebhookSession) ReceiveFrameHandler(frame *event2.FrameMap) (error, []byte) {
 	if s.VerifyToken != "" {
 		gotVerifyToken := ""
-		if v, ok := frame.Data["verify_data"]; ok {
+		if v, ok := frame.Data["verify_token"]; ok {
 			gotVerifyToken = v.(string)
 		}
 		if gotVerifyToken != s.VerifyToken {
