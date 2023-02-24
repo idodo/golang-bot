@@ -76,6 +76,7 @@ go get -u github.com/idodo/golang-bot
 go run kaihela/example/webhook/webhook.go
 
 # 运行websocket机器人
+go run kaihela/example/websock/websock.go
 ````
 4. 在开发者后台，把机器人的地址填入后台。
 
