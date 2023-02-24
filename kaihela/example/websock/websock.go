@@ -8,6 +8,7 @@ import (
 )
 
 func main() {
+	log.SetReportCaller(true)
 	log.SetFormatter(&log.TextFormatter{})
 	log.SetLevel(log.InfoLevel)
 

@@ -11,6 +11,9 @@ import (
 )
 
 func main() {
+	log.SetReportCaller(true)
+	log.SetFormatter(&log.TextFormatter{})
+	log.SetLevel(log.InfoLevel)
 
 	session := base.NewWebhookSession(conf.EncryptKey, conf.VerifyToken, 1)
 	session.On(base.EventReceiveFrame, &handler.ReceiveFrameHandler{})

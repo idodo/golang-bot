@@ -65,7 +65,7 @@ func (gteh *GroupTextEventHandler) Handle(e event.Event) error {
 		if err != nil {
 			return err
 		}
-		log.Infof("resp:%+v", resp)
+		log.Infof("resp:%s", string(resp))
 		return nil
 	}()
 	if err != nil {
