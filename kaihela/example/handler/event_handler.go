@@ -35,7 +35,7 @@ type GroupTextEventHandler struct {
 func (gteh *GroupTextEventHandler) Handle(e event.Event) error {
 	log.WithField("event", fmt.Sprintf("%+v", e.Data())).Info("收到频道内的文字消息.")
 	err := func() error {
-		if _, ok := e.Data()["frame"]; !ok {
+		if _, ok := e.Data()[base.EventDataFrameKey]; !ok {
 			return errors.New("data has no frame field")
 		}
 		frame := e.Data()[base.EventDataFrameKey].(*event2.FrameMap)
@@ -45,6 +45,7 @@ func (gteh *GroupTextEventHandler) Handle(e event.Event) error {
 		}
 		msgEvent := &event2.MessageKMarkdownEvent{}
 		err = sonic.Unmarshal(data, msgEvent)
+		log.Infof("Received json event:%+v", msgEvent)
 		if err != nil {
 			return err
 		}
@@ -62,6 +63,7 @@ func (gteh *GroupTextEventHandler) Handle(e event.Event) error {
 			return err
 		}
 		resp, err := client.SetBody(echoDataByte).Post()
+		log.Info("sent post:%s", client.String())
 		if err != nil {
 			return err
 		}

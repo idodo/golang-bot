@@ -101,6 +101,7 @@ func (h *ApiHelper) Send() ([]byte, error) {
 	req.Header.Set("Content-Type", string(h.ContentType))
 	req.Header.Set("Authorization", fmt.Sprintf("%s %s", h.Type, h.Token))
 	req.Header.Set("Accept-Language", h.Language)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -115,4 +116,14 @@ func (h *ApiHelper) Send() ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+func (h *ApiHelper) String() string {
+	sb := strings.Builder{}
+	sb.WriteString(fmt.Sprintf("Path:%s BaseUrl:%s Method:%s Query:%s ", h.Path, h.BaseUrl, h.Method, h.QueryParam))
+	if len(h.Body) > 0 {
+		sb.WriteString(fmt.Sprintf("Body:%s", string(h.Body)))
+	}
+	return sb.String()
+
 }
