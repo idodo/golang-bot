@@ -34,7 +34,7 @@ session.EventSyncHandle = true
 
 
 // 通过webhook/websocket收到消息后，把数据传给session处理即可，session就会自动按上面注册的事件进行处理。
-$session->receiveData($data);
+session.ReceiveData(data)
 
 ```
 
@@ -46,7 +46,7 @@ client.SetQuery(map[string]string{"foo": "bar"})
 resp, err := client.Get()
 // post示例
 data := []byte(`{"foo":"bar"}`)
-client.SetPost( data )
+client.SetBody( data )
 resp, err := client.Post()
 ```
 
