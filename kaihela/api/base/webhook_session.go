@@ -48,6 +48,7 @@ func (s *WebhookSession) ProcessData(data []byte) (err error, data2 []byte) {
 		log.Error(err)
 		return
 	}
+	log.Info("encryptText", encryptText)
 	err, plainText := helper.DecryptData(encryptText, s.EncryptKey)
 	if err != nil {
 		log.WithError(err).Error("DecryptData failed")
