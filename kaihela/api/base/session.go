@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/bytedance/sonic"
 	"github.com/gookit/event"
+	event2 "github.com/idodo/golang-bot/kaihela/api/base/event"
 	log "github.com/sirupsen/logrus"
-	event2 "golang-bot/kaihela/api/base/event"
 	"io"
 )
 

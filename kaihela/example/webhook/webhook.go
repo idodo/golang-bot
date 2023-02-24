@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/idodo/golang-bot/kaihela/api/base"
+	"github.com/idodo/golang-bot/kaihela/example/conf"
+	"github.com/idodo/golang-bot/kaihela/example/handler"
 	log "github.com/sirupsen/logrus"
-	"golang-bot/kaihela/api/base"
-	"golang-bot/kaihela/example/conf"
-	"golang-bot/kaihela/example/handler"
 	"io"
 	"net/http"
 )

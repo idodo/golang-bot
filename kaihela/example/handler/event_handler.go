@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/bytedance/sonic"
 	"github.com/gookit/event"
+	"github.com/idodo/golang-bot/kaihela/api/base"
+	event2 "github.com/idodo/golang-bot/kaihela/api/base/event"
+	"github.com/idodo/golang-bot/kaihela/api/helper"
 	log "github.com/sirupsen/logrus"
-	"golang-bot/kaihela/api/base"
-	event2 "golang-bot/kaihela/api/base/event"
-	"golang-bot/kaihela/api/helper"
 )
 
 type ReceiveFrameHandler struct {

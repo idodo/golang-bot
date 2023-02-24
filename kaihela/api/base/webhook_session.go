@@ -3,9 +3,9 @@ package base
 import (
 	"errors"
 	"github.com/bytedance/sonic"
+	event2 "github.com/idodo/golang-bot/kaihela/api/base/event"
+	"github.com/idodo/golang-bot/kaihela/api/helper"
 	log "github.com/sirupsen/logrus"
-	event2 "golang-bot/kaihela/api/base/event"
-	"golang-bot/kaihela/api/helper"
 )
 
 type WebhookSession struct {

@@ -1,4 +1,4 @@
-module golang-bot
+module github.com/idodo/golang-bot
 
 go 1.19
 
