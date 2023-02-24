@@ -6,11 +6,13 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/hex"
+	log "github.com/sirupsen/logrus"
 )
 
 func DecryptData(data string, encryptKey string) (error, string) {
 	rawDecodedText, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
+		log.Error(err)
 		return err, ""
 	}
 	sRawText := string(rawDecodedText)
@@ -37,11 +39,13 @@ func Ase256Decode(cipherText string, encKey string, iv string) (err error, decry
 	bIV := []byte(iv)
 	cipherTextDecoded, err := hex.DecodeString(cipherText)
 	if err != nil {
+		log.Error(err)
 		return err, ""
 	}
 
 	block, err := aes.NewCipher(bKey)
 	if err != nil {
+		log.Error(err)
 		return err, ""
 	}
 
