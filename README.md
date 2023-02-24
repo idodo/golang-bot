@@ -65,7 +65,7 @@ go get -u github.com/idodo/golang-bot
 本代码也可以作为一个独立的机器人来运行。
 
 1. git clone git@github.com:idodo/golang-bot.git
-2. 进入代码目录`cd golang-bot`，运行`go mod download`
+2. 进入代码目录`cd golang-bot`，运行`go mod download`，如果下载依赖慢，请先设置国内github代理：`go env -w  GOPROXY=https://goproxy.cn,direct`
 3. 打开[开发者中心](https://developer.kaiheila.cn/bot), 创建机器人，并更改为webhook/websocket模式。
 4. 更改配置，将开发者中心的配置填入kaihela/example/conf/config.go文件中。
 
@@ -74,6 +74,7 @@ go get -u github.com/idodo/golang-bot
 # 按照参数说明，修改config.go的配置, vim kaihela/example/conf/config.go
 # 运行webhook机器人
 go run kaihela/example/webhook/webhook.go
+
 # 运行websocket机器人
 ````
 4. 在开发者后台，把机器人的地址填入后台。
