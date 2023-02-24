@@ -49,12 +49,12 @@ func (s *WebhookSession) ProcessData(data []byte) (err error, data2 []byte) {
 		return
 	}
 	//log.Tracef("encryptText:%s", encryptText)
-	err, plainText := helper.DecryptData(encryptText, s.EncryptKey)
+	err, plainByte := helper.DecryptData(encryptText, s.EncryptKey)
 	if err != nil {
 		log.WithError(err).Error("DecryptData failed")
 		return
 	}
-	return nil, []byte(plainText)
+	return nil, plainByte
 }
 
 func (s *WebhookSession) ReceiveFrameHandler(frame *event2.FrameMap) (error, []byte) {
