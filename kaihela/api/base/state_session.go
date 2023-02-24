@@ -97,14 +97,14 @@ func NewStateSession(gateway string, compressed int) *StateSession {
 		StatusInit:        &StatusParam{StartTime: 0, MaxTime: 60, FirstDelay: 1, MaxRetry: RETRY_INFINIT},
 		StatusGateway:     &StatusParam{StartTime: 1, MaxTime: 32, FirstDelay: 2, MaxRetry: 2},
 		StatusWSConnected: &StatusParam{StartTime: 6, MaxTime: 0, FirstDelay: 0, MaxRetry: NO_RETRY},
-		StatusConnected:   &StatusParam{StartTime: 30, MaxTime: 30, FirstDelay: 30, MaxRetry: NO_RETRY},
-		StatusRetry:       &StatusParam{StartTime: 4, MaxTime: 8, FirstDelay: 4, MaxRetry: 2},
+		StatusConnected:   &StatusParam{StartTime: 30, MaxTime: 30, FirstDelay: 0, MaxRetry: NO_RETRY},
+		StatusRetry:       &StatusParam{StartTime: 0, MaxTime: 8, FirstDelay: 4, MaxRetry: 2},
 	}
 	s.Session.ReceiveFrameHandler = s.ReceiveFrameHandler
 	s.Compressed = compressed
 	s.GateWay = gateway
 	s.RecvQueue = make(chan *event2.FrameMap)
-
+	//
 	s.FSM = fsm.NewFSM(
 		StatusStart,
 		fsm.Events{
@@ -149,11 +149,9 @@ func NewStateSession(gateway string, compressed int) *StateSession {
 		s.SendHeartBeat()
 	})
 	s.PongTimeoutChan = make(chan time.Time)
-	//s.HeartBeatCheckCron.AddFunc(fmt.Sprintf("@every %ds", 1), func() {
-	//	s.CheckHeartbeat()
-	//})
 	return s
 }
+
 func (s *StateSession) Start() {
 	if s.GateWay == "" {
 		s.FSM.SetState(StatusInit)
@@ -179,6 +177,7 @@ func (s *StateSession) GetGateway() error {
 	}
 	return nil
 }
+
 func (s *StateSession) Retry(e *fsm.Event, handler func() error, errHandler func() error) {
 	log.Infof("Retry handler:%s", helper.GetFunctionName(handler))
 	startTime := s.StatusParams[s.FSM.Current()].StartTime
@@ -295,7 +294,7 @@ func (s *StateSession) StartProcessEvent() {
 
 }
 
-func (s *StateSession) ReceiveFrameHandler(frame *event2.FrameMap) error {
+func (s *StateSession) ReceiveFrameHandler(frame *event2.FrameMap) (error, []byte) {
 	switch frame.SignalType {
 	case event2.SIG_EVENT:
 		{
@@ -324,7 +323,7 @@ func (s *StateSession) ReceiveFrameHandler(frame *event2.FrameMap) error {
 		}
 
 	}
-	return nil
+	return nil, nil
 
 }
 

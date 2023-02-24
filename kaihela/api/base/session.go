@@ -5,51 +5,59 @@ import (
 	"compress/zlib"
 	"fmt"
 	"github.com/bytedance/sonic"
-	"github.com/bytedance/sonic/ast"
 	"github.com/gookit/event"
 	log "github.com/sirupsen/logrus"
 	event2 "golang-bot/kaihela/api/base/event"
 	"io"
 )
 
-const EVENT_RECEIVE_FRAME = "EVENT-GLOBAL-RECEIVE_FRAME"
+const EventReceiveFrame = "EVENT-GLOBAL-RECEIVE_FRAME"
 const EventDataFrameKey = "frame"
 const EventDataSessionKey = "session"
 
 type Session struct {
 	Compressed          int
-	ReceiveFrameHandler func(frame *event2.FrameMap) error
-	ProcessDataHandler  func(data ast.Node) []byte
+	ReceiveFrameHandler func(frame *event2.FrameMap) (error, []byte)
+	ProcessDataHandler  func(data []byte) (error, []byte)
+	EventSyncHandle     bool
 }
 
 func (s *Session) On(message string, handler event.Listener) {
 	event.On(message, handler)
 }
 func (s *Session) Trigger(eventName string, params event.M) {
-	event.Trigger(eventName, params)
+	if s.EventSyncHandle {
+		event.Trigger(eventName, params)
+	} else {
+		event.AsyncFire(event.NewBasic(eventName, params))
+	}
 }
-func (s *Session) ReceiveData(data []byte) error {
+func (s *Session) ReceiveData(data []byte) (error, []byte) {
 	if s.Compressed == 1 {
 		b := bytes.NewReader(data)
 		r, err := zlib.NewReader(b)
 		if err != nil {
-			return err
+			return err, nil
 		}
 
 		data, err = io.ReadAll(r)
 		if err != nil {
 			log.Error(err)
-			return err
+			return err, nil
 		}
 
 	}
-	dataNode, err := sonic.Get(data)
+	_, err := sonic.Get(data)
 	if err != nil {
 		log.Error("Json Unmarshal err.", err)
-		return err
+		return err, nil
 	}
 	if s.ProcessDataHandler != nil {
-		data = s.ProcessDataHandler(dataNode)
+		err, data = s.ProcessDataHandler(data)
+		if err != nil {
+			log.WithError(err).Error("ProcessDataHandler")
+			return err, nil
+		}
 	}
 	frame := event2.ParseFrameMapByData(data)
 	log.WithField("frame", frame).Info("Receive frame from server")
@@ -62,20 +70,25 @@ func (s *Session) ReceiveData(data []byte) error {
 	} else {
 		log.Warnf("数据不是合法的frame", string(data))
 	}
-	return nil
+	return nil, nil
 
 }
 
-func (s *Session) ReceiveFrame(frame *event2.FrameMap) error {
-	event.Trigger(EVENT_RECEIVE_FRAME, map[string]interface{}{"frame": frame})
+func (s *Session) ReceiveFrame(frame *event2.FrameMap) (error, []byte) {
+	event.Trigger(EventReceiveFrame, map[string]interface{}{"frame": frame})
 	if frame.SignalType == event2.SIG_EVENT {
 		eventType := frame.Data["type"]
 		channelType := frame.Data["channel_type"].(string)
 		if eventType != "" {
 			name := fmt.Sprintf("%s_%d", channelType, int64(eventType.(float64)))
-			event.Trigger(name, map[string]interface{}{EventDataFrameKey: frame, EventDataSessionKey: s})
+			fireEvent := event.NewBasic(name, map[string]interface{}{EventDataFrameKey: frame, EventDataSessionKey: s})
+			if s.EventSyncHandle {
+				event.Trigger(fireEvent.Name(), fireEvent.Data())
+			} else {
+				event.AsyncFire(fireEvent)
+			}
 		}
 	}
-	return nil
+	return nil, nil
 
 }

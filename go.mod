@@ -12,6 +12,8 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 )
 
+replace github.com/gookit/event v1.0.6 => github.com/idodo/event v1.0.1
+
 require (
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect

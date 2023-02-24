@@ -98,7 +98,7 @@ func (ws *WebSocketSession) ConnectWebsocket(gateway string) error {
 				return
 			}
 			log.WithField("message", message).Trace("websocket recv")
-			err = ws.ReceiveData(message)
+			err, _ = ws.ReceiveData(message)
 			if err != nil {
 				log.WithError(err).Error("ReceiveData error")
 			}

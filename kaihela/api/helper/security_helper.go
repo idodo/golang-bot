@@ -11,7 +11,7 @@ import (
 func DecryptData(data string, encryptKey string) (error, string) {
 	rawDecodedText, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		return err, nil
+		return err, ""
 	}
 	sRawText := string(rawDecodedText)
 	iv := sRawText[:16]
@@ -51,7 +51,7 @@ func Ase256Decode(cipherText string, encKey string, iv string) (err error, decry
 }
 
 func PKCS5Padding(ciphertext []byte, blockSize int, after int) []byte {
-	padding := (blockSize - len(ciphertext)%blockSize)
+	padding := blockSize - len(ciphertext)%blockSize
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
